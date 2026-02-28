@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BioTrack — Fingerprint Attendance System</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0c10;
+    --surface: #111418;
+    --surface2: #181c22;
+    --border: #1e2530;
+    --accent: #00e5a0;
+    --accent2: #0077ff;
+    --danger: #ff4060;
+    --warn: #ffb020;
+    --text: #e8edf5;
+    --muted: #5a6478;
+    --card-glow: 0 0 30px rgba(0,229,160,0.07);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: 'Syne', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid background */
+  body::before {
+    content:'';
+    position:fixed; inset:0;
+    background-image:
+      linear-gradient(rgba(0,229,160,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,160,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events:none; z-index:0;
+  }
+
+  /* ── LAYOUT ── */
+  .app { display:flex; min-height:100vh; position:relative; z-index:1; }
+
+  /* Sidebar */
+  .sidebar {
+    width: 220px; flex-shrink:0;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display:flex; flex-direction:column;
+    padding: 28px 0;
+    position: sticky; top:0; height:100vh;
+  }
+  .logo {
+    padding: 0 24px 28px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 16px;
+  }
+  .logo-mark {
+    font-family:'Space Mono',monospace;
+    font-size:18px; font-weight:700;
+    color: var(--accent);
+    letter-spacing:-0.5px;
+  }
+  .logo-sub { font-size:10px; color:var(--muted); letter-spacing:2px; text-transform:uppercase; margin-top:2px; }
+
+  .nav-item {
+    display:flex; align-items:center; gap:10px;
+    padding: 11px 24px;
+    cursor:pointer; font-size:13px; font-weight:600;
+    color: var(--muted);
+    border-left: 3px solid transparent;
+    transition: all 0.15s;
+    letter-spacing:0.3px;
+  }
+  .nav-item:hover { color:var(--text); background:rgba(255,255,255,0.03); }
+  .nav-item.active { color:var(--accent); border-left-color:var(--accent); background:rgba(0,229,160,0.05); }
+  .nav-icon { font-size:16px; width:20px; text-align:center; }
+
+  .sidebar-footer {
+    margin-top:auto; padding:20px 24px;
+    border-top:1px solid var(--border);
+    font-size:11px; color:var(--muted);
+    font-family:'Space Mono',monospace;
+  }
+  .status-dot { display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--accent); margin-right:6px; animation:pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+
+  /* Main */
+  .main { flex:1; padding: 36px 40px; overflow-y:auto; }
+
+  .page { display:none; }
+  .page.active { display:block; }
+
+  /* Page Header */
+  .page-header { margin-bottom:32px; }
+  .page-title { font-size:28px; font-weight:800; letter-spacing:-0.5px; }
+  .page-sub { font-size:13px; color:var(--muted); margin-top:4px; }
+
+  /* Stats row */
+  .stats-row { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:28px; }
+  .stat-card {
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:12px; padding:20px;
+    position:relative; overflow:hidden;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .stat-card:hover { transform:translateY(-2px); box-shadow: var(--card-glow); }
+  .stat-card::after {
+    content:''; position:absolute; top:0; left:0; right:0; height:2px;
+    background:var(--accent-color, var(--accent));
+  }
+  .stat-card.blue { --accent-color: var(--accent2); }
+  .stat-card.warn { --accent-color: var(--warn); }
+  .stat-card.danger { --accent-color: var(--danger); }
+  .stat-label { font-size:11px; color:var(--muted); letter-spacing:1.5px; text-transform:uppercase; margin-bottom:8px; }
+  .stat-value { font-size:32px; font-weight:800; letter-spacing:-1px; }
+  .stat-delta { font-size:11px; color:var(--muted); margin-top:4px; }
+  .stat-delta span { color:var(--accent); }
+
+  /* Cards */
+  .card {
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:12px; padding:24px;
+    margin-bottom:20px;
+  }
+  .card-title { font-size:13px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:var(--muted); margin-bottom:18px; }
+
+  /* Table */
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { text-align:left; padding:10px 14px; font-size:10px; letter-spacing:1.5px; text-transform:uppercase; color:var(--muted); border-bottom:1px solid var(--border); font-weight:600; }
+  td { padding:12px 14px; border-bottom:1px solid rgba(255,255,255,0.04); vertical-align:middle; }
+  tr:last-child td { border-bottom:none; }
+  tr:hover td { background:rgba(255,255,255,0.02); }
+
+  .badge {
+    display:inline-block; padding:3px 10px;
+    border-radius:99px; font-size:11px; font-weight:700;
+    letter-spacing:0.5px;
+  }
+  .badge-present { background:rgba(0,229,160,0.12); color:var(--accent); }
+  .badge-absent  { background:rgba(255,64,96,0.12);  color:var(--danger); }
+  .badge-late    { background:rgba(255,176,32,0.12); color:var(--warn); }
+
+  /* Avatar */
+  .avatar {
+    width:32px; height:32px; border-radius:8px;
+    background:var(--surface2); display:inline-flex;
+    align-items:center; justify-content:center;
+    font-size:12px; font-weight:700; color:var(--accent);
+    border:1px solid var(--border); margin-right:10px;
+    vertical-align:middle;
+  }
+
+  /* ── ENROLL PAGE ── */
+  .enroll-grid { display:grid; grid-template-columns:1fr 1fr; gap:24px; }
+
+  .fp-scanner {
+    aspect-ratio:1;
+    background:var(--surface2);
+    border:2px dashed var(--border);
+    border-radius:20px;
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    cursor:pointer; position:relative;
+    transition: border-color 0.3s, background 0.3s;
+    overflow:hidden;
+    max-width: 280px; margin:0 auto;
+  }
+  .fp-scanner:hover { border-color: var(--accent); background:rgba(0,229,160,0.03); }
+  .fp-scanner.scanning { border-color:var(--accent); border-style:solid; animation: scan-border 1.5s ease-in-out infinite; }
+  .fp-scanner.success { border-color:var(--accent); border-style:solid; background:rgba(0,229,160,0.06); }
+  .fp-scanner.error   { border-color:var(--danger); border-style:solid; background:rgba(255,64,96,0.06); }
+
+  @keyframes scan-border {
+    0%,100%{ box-shadow: 0 0 0 0 rgba(0,229,160,0); }
+    50%    { box-shadow: 0 0 0 8px rgba(0,229,160,0.15); }
+  }
+
+  .fp-icon { font-size:64px; line-height:1; margin-bottom:14px; transition: transform 0.3s; }
+  .fp-scanner:hover .fp-icon { transform:scale(1.05); }
+  .fp-scanner.scanning .fp-icon { animation: fp-pulse 0.8s ease-in-out infinite; }
+  @keyframes fp-pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+
+  .fp-label { font-size:12px; color:var(--muted); letter-spacing:1px; text-transform:uppercase; }
+  .fp-scan-line {
+    position:absolute; left:20%; right:20%; height:2px;
+    background:linear-gradient(90deg, transparent, var(--accent), transparent);
+    border-radius:99px;
+    opacity:0;
+    animation:none;
+  }
+  .fp-scanner.scanning .fp-scan-line {
+    opacity:1;
+    animation: scan-line 1.2s ease-in-out infinite;
+    top:30%;
+  }
+  @keyframes scan-line {
+    0%   { top:20%; opacity:0; }
+    10%  { opacity:1; }
+    90%  { opacity:1; }
+    100% { top:80%; opacity:0; }
+  }
+
+  /* Progress steps */
+  .steps { display:flex; gap:0; margin-bottom:24px; }
+  .step {
+    flex:1; text-align:center; position:relative;
+    padding-bottom:16px;
+  }
+  .step::after {
+    content:''; position:absolute; top:14px; left:50%; right:-50%;
+    height:2px; background:var(--border);
+  }
+  .step:last-child::after { display:none; }
+  .step.done::after { background:var(--accent); }
+  .step-dot {
+    width:28px; height:28px; border-radius:50%;
+    background:var(--surface2); border:2px solid var(--border);
+    display:inline-flex; align-items:center; justify-content:center;
+    font-size:11px; font-weight:700; color:var(--muted);
+    position:relative; z-index:1; margin-bottom:6px;
+    transition: all 0.3s;
+  }
+  .step.active .step-dot { border-color:var(--accent); color:var(--accent); background:rgba(0,229,160,0.1); }
+  .step.done .step-dot   { border-color:var(--accent); background:var(--accent); color:var(--bg); }
+  .step-name { font-size:11px; color:var(--muted); display:block; }
+  .step.active .step-name { color:var(--text); }
+
+  /* Form */
+  .form-row { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px; }
+  .form-group { display:flex; flex-direction:column; gap:6px; }
+  .form-group.full { grid-column:1/-1; }
+  label { font-size:11px; letter-spacing:1px; text-transform:uppercase; color:var(--muted); font-weight:600; }
+  input, select {
+    background:var(--surface2); border:1px solid var(--border);
+    color:var(--text); padding:10px 14px; border-radius:8px;
+    font-family:'Syne',sans-serif; font-size:13px;
+    outline:none; transition: border-color 0.2s;
+  }
+  input:focus, select:focus { border-color:var(--accent); }
+  select option { background:var(--surface2); }
+
+  /* Buttons */
+  .btn {
+    padding:10px 20px; border-radius:8px; border:none;
+    font-family:'Syne',sans-serif; font-weight:700; font-size:13px;
+    cursor:pointer; transition:all 0.2s; letter-spacing:0.5px;
+  }
+  .btn-primary { background:var(--accent); color:var(--bg); }
+  .btn-primary:hover { background:#00ffb3; transform:translateY(-1px); }
+  .btn-secondary { background:var(--surface2); color:var(--text); border:1px solid var(--border); }
+  .btn-secondary:hover { border-color:var(--accent); color:var(--accent); }
+  .btn-danger { background:rgba(255,64,96,0.15); color:var(--danger); border:1px solid rgba(255,64,96,0.3); }
+  .btn-danger:hover { background:rgba(255,64,96,0.25); }
+
+  /* Attendance scan page */
+  .scan-center {
+    display:flex; flex-direction:column; align-items:center;
+    justify-content:center; min-height:400px; gap:24px;
+  }
+  .scan-big {
+    width:220px; height:220px;
+    background:var(--surface2);
+    border:2px solid var(--border);
+    border-radius:24px;
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    cursor:pointer; position:relative; overflow:hidden;
+    transition: all 0.3s;
+  }
+  .scan-big.ready:hover { border-color:var(--accent); box-shadow:0 0 40px rgba(0,229,160,0.15); }
+  .scan-big.scanning { border-color:var(--accent); animation:scan-border 1s infinite; }
+  .scan-big.ok   { border-color:var(--accent); background:rgba(0,229,160,0.1); box-shadow:0 0 50px rgba(0,229,160,0.2); }
+  .scan-big.fail { border-color:var(--danger); background:rgba(255,64,96,0.1); box-shadow:0 0 50px rgba(255,64,96,0.2); }
+  .scan-big-icon { font-size:80px; }
+  .scan-big .fp-scan-line { left:15%; right:15%; }
+
+  .scan-result {
+    text-align:center;
+    min-height:80px; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:6px;
+  }
+  .scan-result-name { font-size:22px; font-weight:800; }
+  .scan-result-info { font-size:13px; color:var(--muted); }
+  .scan-time { font-family:'Space Mono',monospace; font-size:28px; color:var(--accent); font-weight:700; }
+
+  /* Log list */
+  .log-entry {
+    display:flex; align-items:center; gap:14px;
+    padding:10px 0; border-bottom:1px solid rgba(255,255,255,0.04);
+  }
+  .log-entry:last-child { border-bottom:none; }
+  .log-time { font-family:'Space Mono',monospace; font-size:12px; color:var(--muted); width:70px; flex-shrink:0; }
+  .log-name { font-size:13px; font-weight:600; }
+  .log-dept { font-size:11px; color:var(--muted); }
+
+  /* Toast */
+  .toast {
+    position:fixed; bottom:28px; right:28px;
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:12px; padding:14px 20px;
+    font-size:13px; z-index:999;
+    transform:translateY(80px); opacity:0;
+    transition:all 0.3s;
+    display:flex; align-items:center; gap:10px;
+    box-shadow:0 8px 32px rgba(0,0,0,0.5);
+  }
+  .toast.show { transform:translateY(0); opacity:1; }
+  .toast.success { border-color:rgba(0,229,160,0.4); }
+  .toast.error   { border-color:rgba(255,64,96,0.4); }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width:6px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+  ::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+
+  /* Responsive */
+  @media(max-width:900px){
+    .stats-row { grid-template-columns:1fr 1fr; }
+    .enroll-grid { grid-template-columns:1fr; }
+    .sidebar { width:180px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="logo">
+      <div class="logo-mark">BioTrack</div>
+      <div class="logo-sub">Attendance System</div>
+    </div>
+
+    <div class="nav-item active" onclick="navigate('dashboard')">
+      <span class="nav-icon">◈</span> Dashboard
+    </div>
+    <div class="nav-item" onclick="navigate('scan')">
+      <span class="nav-icon">◉</span> Scan Attendance
+    </div>
+    <div class="nav-item" onclick="navigate('enroll')">
+      <span class="nav-icon">⊕</span> Enroll User
+    </div>
+    <div class="nav-item" onclick="navigate('users')">
+      <span class="nav-icon">◧</span> Users
+    </div>
+    <div class="nav-item" onclick="navigate('reports')">
+      <span class="nav-icon">◫</span> Reports
+    </div>
+
+    <div class="sidebar-footer">
+      <div><span class="status-dot"></span>Device Online</div>
+      <div style="margin-top:4px">FP-100 v2.3.1</div>
+    </div>
+  </nav>
+
+  <!-- Main -->
+  <main class="main">
+
+    <!-- DASHBOARD -->
+    <div class="page active" id="page-dashboard">
+      <div class="page-header">
+        <div class="page-title">Dashboard</div>
+        <div class="page-sub">Today — <span id="today-date"></span></div>
+      </div>
+
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-label">Present Today</div>
+          <div class="stat-value" id="stat-present">0</div>
+          <div class="stat-delta">of <span id="stat-total">0</span> enrolled</div>
+        </div>
+        <div class="stat-card blue">
+          <div class="stat-label">Total Users</div>
+          <div class="stat-value" id="stat-users">0</div>
+          <div class="stat-delta"><span>Active</span> fingerprints</div>
+        </div>
+        <div class="stat-card warn">
+          <div class="stat-label">Late</div>
+          <div class="stat-value" id="stat-late">0</div>
+          <div class="stat-delta">After 9:00 AM</div>
+        </div>
+        <div class="stat-card danger">
+          <div class="stat-label">Absent</div>
+          <div class="stat-value" id="stat-absent">0</div>
+          <div class="stat-delta">No scan today</div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+        <div class="card">
+          <div class="card-title">Today's Attendance</div>
+          <table>
+            <thead>
+              <tr><th>Name</th><th>Dept</th><th>Time In</th><th>Status</th></tr>
+            </thead>
+            <tbody id="attendance-table-body">
+              <tr><td colspan="4" style="color:var(--muted);text-align:center;padding:24px">No records yet</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card">
+          <div class="card-title">Recent Scans</div>
+          <div id="recent-log"><div style="color:var(--muted);font-size:13px;text-align:center;padding:24px">No scans today</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SCAN ATTENDANCE -->
+    <div class="page" id="page-scan">
+      <div class="page-header">
+        <div class="page-title">Scan Attendance</div>
+        <div class="page-sub">Place finger on the sensor to record attendance</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+        <div class="card">
+          <div class="scan-center">
+            <div class="scan-big ready" id="scan-pad" onclick="doScan()">
+              <div class="scan-big-icon" id="scan-icon">🫰</div>
+              <div class="fp-scan-line" id="scan-line"></div>
+            </div>
+            <div class="scan-result" id="scan-result">
+              <div class="scan-time" id="live-clock"></div>
+              <div class="scan-result-info">Tap sensor to scan</div>
+            </div>
+            <button class="btn btn-primary" onclick="doScan()" style="width:180px">Simulate Scan</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Today's Log</div>
+          <div id="scan-log-list"><div style="color:var(--muted);font-size:13px;text-align:center;padding:24px">No entries yet</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ENROLL USER -->
+    <div class="page" id="page-enroll">
+      <div class="page-header">
+        <div class="page-title">Enroll New User</div>
+        <div class="page-sub">Register fingerprint via web interface</div>
+      </div>
+
+      <!-- Steps -->
+      <div class="steps" id="enroll-steps">
+        <div class="step active" id="step-1">
+          <div class="step-dot">1</div>
+          <span class="step-name">User Info</span>
+        </div>
+        <div class="step" id="step-2">
+          <div class="step-dot">2</div>
+          <span class="step-name">Scan Finger</span>
+        </div>
+        <div class="step" id="step-3">
+          <div class="step-dot">3</div>
+          <span class="step-name">Confirm</span>
+        </div>
+      </div>
+
+      <div class="enroll-grid">
+        <!-- Left: Form -->
+        <div>
+          <!-- Step 1 panel -->
+          <div class="card" id="enroll-panel-1">
+            <div class="card-title">Personal Information</div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>First Name</label>
+                <input type="text" id="e-fname" placeholder="e.g. Ahmad">
+              </div>
+              <div class="form-group">
+                <label>Last Name</label>
+                <input type="text" id="e-lname" placeholder="e.g. Rahman">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Employee / Student ID</label>
+                <input type="text" id="e-id" placeholder="EMP-001">
+              </div>
+              <div class="form-group">
+                <label>Department</label>
+                <select id="e-dept">
+                  <option value="">Select…</option>
+                  <option>Engineering</option>
+                  <option>Sales</option>
+                  <option>HR</option>
+                  <option>Finance</option>
+                  <option>Operations</option>
+                  <option>IT</option>
+                  <option>Design</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group full">
+                <label>Role / Position</label>
+                <input type="text" id="e-role" placeholder="e.g. Senior Developer">
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;margin-top:8px">
+              <button class="btn btn-primary" onclick="nextStep(2)">Next → Scan Fingerprint</button>
+            </div>
+          </div>
+
+          <!-- Step 2 panel -->
+          <div class="card" id="enroll-panel-2" style="display:none">
+            <div class="card-title">Instructions</div>
+            <ol style="font-size:13px;color:var(--muted);line-height:2;padding-left:18px">
+              <li>Place your <strong style="color:var(--text)">index finger</strong> flat on the sensor</li>
+              <li>Hold still for <strong style="color:var(--text)">3 seconds</strong></li>
+              <li>You will be asked to scan <strong style="color:var(--text)">3 times</strong> for accuracy</li>
+              <li>Green glow = successful capture</li>
+            </ol>
+            <div style="margin-top:16px;display:flex;gap:10px">
+              <button class="btn btn-secondary" onclick="nextStep(1)">← Back</button>
+              <button class="btn btn-primary" onclick="startFPEnroll()">Start Scan</button>
+            </div>
+          </div>
+
+          <!-- Step 3 panel -->
+          <div class="card" id="enroll-panel-3" style="display:none">
+            <div class="card-title">Review & Confirm</div>
+            <div id="enroll-review" style="font-size:13px;line-height:2.2;color:var(--muted)"></div>
+            <div style="margin-top:16px;display:flex;gap:10px">
+              <button class="btn btn-secondary" onclick="nextStep(1)">Start Over</button>
+              <button class="btn btn-primary" onclick="confirmEnroll()">✓ Confirm Enrollment</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: FP Scanner visual -->
+        <div>
+          <div class="card" style="text-align:center">
+            <div class="card-title">Fingerprint Sensor</div>
+            <div class="fp-scanner" id="fp-scanner" onclick="startFPEnroll()">
+              <div class="fp-icon" id="fp-icon">🫰</div>
+              <div class="fp-scan-line" id="fp-scan-line"></div>
+              <div class="fp-label" id="fp-label">Tap to scan</div>
+            </div>
+            <div id="fp-progress" style="margin-top:18px;font-family:'Space Mono',monospace;font-size:12px;color:var(--muted)">
+              Waiting…
+            </div>
+            <div style="display:flex;justify-content:center;gap:8px;margin-top:12px" id="fp-dots">
+              <div style="width:10px;height:10px;border-radius:50%;background:var(--border)" id="fpdot-1"></div>
+              <div style="width:10px;height:10px;border-radius:50%;background:var(--border)" id="fpdot-2"></div>
+              <div style="width:10px;height:10px;border-radius:50%;background:var(--border)" id="fpdot-3"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- USERS -->
+    <div class="page" id="page-users">
+      <div class="page-header" style="display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <div class="page-title">Enrolled Users</div>
+          <div class="page-sub">All registered fingerprints</div>
+        </div>
+        <button class="btn btn-primary" onclick="navigate('enroll')">⊕ Enroll New</button>
+      </div>
+      <div class="card">
+        <table>
+          <thead>
+            <tr><th>Name</th><th>ID</th><th>Department</th><th>Role</th><th>FP ID</th><th>Action</th></tr>
+          </thead>
+          <tbody id="users-table-body">
+            <tr><td colspan="6" style="color:var(--muted);text-align:center;padding:24px">No users enrolled yet</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- REPORTS -->
+    <div class="page" id="page-reports">
+      <div class="page-header">
+        <div class="page-title">Reports</div>
+        <div class="page-sub">Attendance summary and export</div>
+      </div>
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-label">This Week</div>
+          <div class="stat-value" id="rpt-week">0</div>
+          <div class="stat-delta">Total scans</div>
+        </div>
+        <div class="stat-card blue">
+          <div class="stat-label">Avg. Check-in</div>
+          <div class="stat-value" style="font-size:22px" id="rpt-avg">—</div>
+          <div class="stat-delta">Time of day</div>
+        </div>
+        <div class="stat-card warn">
+          <div class="stat-label">Unique Users</div>
+          <div class="stat-value" id="rpt-unique">0</div>
+          <div class="stat-delta">Have scanned</div>
+        </div>
+        <div class="stat-card danger">
+          <div class="stat-label">Late Rate</div>
+          <div class="stat-value" id="rpt-late-rate">0%</div>
+          <div class="stat-delta">After 9:00 AM</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+          <span>All Attendance Records</span>
+          <button class="btn btn-secondary" onclick="exportCSV()" style="font-size:11px;padding:6px 14px">↓ Export CSV</button>
+        </div>
+        <table>
+          <thead><tr><th>Name</th><th>ID</th><th>Date</th><th>Time</th><th>Status</th></tr></thead>
+          <tbody id="report-table-body">
+            <tr><td colspan="5" style="color:var(--muted);text-align:center;padding:24px">No records</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ── STATE ──
+let users = [
+  { id:'EMP-001', fname:'Ahmad', lname:'Rahman', dept:'Engineering', role:'Lead Developer', fpId:'FP-001' },
+  { id:'EMP-002', fname:'Siti',  lname:'Aminah', dept:'HR',          role:'HR Manager',     fpId:'FP-002' },
+  { id:'EMP-003', fname:'Raj',   lname:'Kumar',  dept:'IT',          role:'Systems Admin',  fpId:'FP-003' },
+];
+let attendanceLog = []; // {userId, time, status}
+let enrollStep = 1;
+let fpScanCount = 0;
+
+// ── NAV ──
+function navigate(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-'+page).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => {
+    if(n.textContent.toLowerCase().includes(page.replace('-',' '))) n.classList.add('active');
+  });
+  if(page==='dashboard') refreshDashboard();
+  if(page==='users') renderUsers();
+  if(page==='reports') renderReports();
+}
+
+// ── CLOCK ──
+function updateClock(){
+  const now = new Date();
+  const el = document.getElementById('live-clock');
+  if(el) el.textContent = now.toLocaleTimeString('en-MY',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+setInterval(updateClock, 1000); updateClock();
+document.getElementById('today-date').textContent = new Date().toLocaleDateString('en-MY',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+
+// ── DASHBOARD ──
+function refreshDashboard() {
+  const today = new Date().toDateString();
+  const todayLogs = attendanceLog.filter(l => new Date(l.time).toDateString()===today);
+  const presentIds = [...new Set(todayLogs.map(l=>l.userId))];
+  const lateCount = todayLogs.filter(l=>l.status==='Late').length;
+  const absentCount = Math.max(0, users.length - presentIds.length);
+
+  document.getElementById('stat-present').textContent = presentIds.length;
+  document.getElementById('stat-total').textContent = users.length;
+  document.getElementById('stat-users').textContent = users.length;
+  document.getElementById('stat-late').textContent = lateCount;
+  document.getElementById('stat-absent').textContent = absentCount;
+
+  // Table
+  const tbody = document.getElementById('attendance-table-body');
+  if(todayLogs.length===0){
+    tbody.innerHTML='<tr><td colspan="4" style="color:var(--muted);text-align:center;padding:24px">No records yet</td></tr>';
+  } else {
+    const seen = {};
+    const rows = todayLogs.filter(l=>{ if(seen[l.userId]) return false; seen[l.userId]=true; return true; });
+    tbody.innerHTML = rows.map(l=>{
+      const u = users.find(u=>u.id===l.userId)||{fname:'?',lname:'',dept:'?'};
+      const t = new Date(l.time).toLocaleTimeString('en-MY',{hour:'2-digit',minute:'2-digit'});
+      return `<tr>
+        <td><span class="avatar">${u.fname[0]}${u.lname[0]}</span>${u.fname} ${u.lname}</td>
+        <td style="color:var(--muted)">${u.dept}</td>
+        <td style="font-family:'Space Mono',monospace;font-size:12px">${t}</td>
+        <td><span class="badge badge-${l.status.toLowerCase()}">${l.status}</span></td>
+      </tr>`;
+    }).join('');
+  }
+
+  // Recent log
+  const logEl = document.getElementById('recent-log');
+  if(todayLogs.length===0){
+    logEl.innerHTML='<div style="color:var(--muted);font-size:13px;text-align:center;padding:24px">No scans today</div>';
+  } else {
+    logEl.innerHTML = [...todayLogs].reverse().slice(0,8).map(l=>{
+      const u = users.find(u=>u.id===l.userId)||{fname:'?',lname:'',dept:'?'};
+      const t = new Date(l.time).toLocaleTimeString('en-MY',{hour:'2-digit',minute:'2-digit'});
+      return `<div class="log-entry">
+        <div class="log-time">${t}</div>
+        <span class="avatar" style="width:28px;height:28px;font-size:11px">${u.fname[0]}${u.lname[0]}</span>
+        <div><div class="log-name">${u.fname} ${u.lname}</div><div class="log-dept">${u.dept}</div></div>
+        <span class="badge badge-${l.status.toLowerCase()}" style="margin-left:auto">${l.status}</span>
+      </div>`;
+    }).join('');
+  }
+}
+
+// ── SCAN ATTENDANCE ──
+let scanBusy = false;
+function doScan() {
+  if(scanBusy || users.length===0){ showToast('No users enrolled. Enroll someone first!','error'); return; }
+  scanBusy = true;
+  const pad = document.getElementById('scan-pad');
+  const icon = document.getElementById('scan-icon');
+  const line = document.getElementById('scan-line');
+  const result = document.getElementById('scan-result');
+
+  pad.className = 'scan-big scanning';
+  icon.textContent = '👆';
+  line.style.animation = 'scan-line 1.2s ease-in-out infinite';
+  line.style.opacity = '1';
+  result.innerHTML = '<div class="scan-result-info" style="color:var(--accent)">Scanning…</div>';
+
+  setTimeout(()=>{
+    const success = Math.random() > 0.15;
+    if(success) {
+      const u = users[Math.floor(Math.random()*users.length)];
+      const now = new Date();
+      const h = now.getHours(), m = now.getMinutes();
+      const late = (h>9)||(h===9&&m>0);
+      const status = late ? 'Late' : 'Present';
+      attendanceLog.push({userId:u.id, time:now.toISOString(), status});
+
+      pad.className = 'scan-big ok';
+      icon.textContent = '✅';
+      line.style.opacity='0';
+      result.innerHTML = `
+        <div class="scan-result-name">${u.fname} ${u.lname}</div>
+        <div class="scan-result-info">${u.dept} · ${u.id}</div>
+        <span class="badge badge-${status.toLowerCase()}">${status}</span>
+      `;
+      showToast(`✓ ${u.fname} ${u.lname} — ${status}`, 'success');
+      refreshScanLog();
+    } else {
+      pad.className = 'scan-big fail';
+      icon.textContent = '❌';
+      line.style.opacity='0';
+      result.innerHTML = '<div class="scan-result-name" style="color:var(--danger)">Not Recognized</div><div class="scan-result-info">Please try again</div>';
+      showToast('Fingerprint not recognized', 'error');
+    }
+    setTimeout(()=>{
+      pad.className='scan-big ready';
+      icon.textContent='🫰';
+      result.innerHTML=`<div class="scan-time" id="live-clock"></div><div class="scan-result-info">Tap sensor to scan</div>`;
+      updateClock();
+      scanBusy=false;
+    }, 2500);
+  }, 2000);
+}
+
+function refreshScanLog() {
+  const today = new Date().toDateString();
+  const todayLogs = attendanceLog.filter(l=>new Date(l.time).toDateString()===today);
+  const el = document.getElementById('scan-log-list');
+  if(todayLogs.length===0){ el.innerHTML='<div style="color:var(--muted);font-size:13px;text-align:center;padding:24px">No entries yet</div>'; return; }
+  el.innerHTML = [...todayLogs].reverse().map(l=>{
+    const u = users.find(u=>u.id===l.userId)||{fname:'?',lname:'',dept:'?'};
+    const t = new Date(l.time).toLocaleTimeString('en-MY',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    return `<div class="log-entry">
+      <div class="log-time">${t}</div>
+      <span class="avatar" style="width:28px;height:28px;font-size:11px">${u.fname[0]}${u.lname[0]}</span>
+      <div><div class="log-name">${u.fname} ${u.lname}</div><div class="log-dept">${u.dept}</div></div>
+      <span class="badge badge-${l.status.toLowerCase()}" style="margin-left:auto">${l.status}</span>
+    </div>`;
+  }).join('');
+}
+
+// ── ENROLL ──
+function nextStep(n) {
+  if(n===2) {
+    const fname = document.getElementById('e-fname').value.trim();
+    const lname = document.getElementById('e-lname').value.trim();
+    const eid   = document.getElementById('e-id').value.trim();
+    const dept  = document.getElementById('e-dept').value;
+    if(!fname||!lname||!eid||!dept){ showToast('Please fill all required fields','error'); return; }
+  }
+  enrollStep = n;
+  ['1','2','3'].forEach(s=>{
+    document.getElementById('step-'+s).className='step'+(s==n?' active':s<n?' done':'');
+    document.getElementById('enroll-panel-'+s).style.display = s==n?'block':'none';
+  });
+  fpScanCount=0;
+  resetFPScanner();
+}
+
+function startFPEnroll() {
+  if(enrollStep!==2) { nextStep(2); return; }
+  if(fpScanCount>=3) return;
+  const scanner = document.getElementById('fp-scanner');
+  const icon    = document.getElementById('fp-icon');
+  const line    = document.getElementById('fp-scan-line');
+  const prog    = document.getElementById('fp-progress');
+
+  scanner.className='fp-scanner scanning';
+  icon.textContent='👆';
+  line.style.opacity='1'; line.style.animation='scan-line 1.2s ease-in-out infinite';
+  prog.textContent='Scanning…';
+
+  setTimeout(()=>{
+    const ok = Math.random()>0.1;
+    if(ok){
+      fpScanCount++;
+      document.getElementById('fpdot-'+fpScanCount).style.background='var(--accent)';
+      if(fpScanCount<3){
+        scanner.className='fp-scanner success';
+        icon.textContent='✅';
+        prog.textContent=`Scan ${fpScanCount}/3 — Lift and place again`;
+        setTimeout(()=>{ scanner.className='fp-scanner'; icon.textContent='🫰'; prog.textContent='Place finger again…'; line.style.opacity='0'; },1000);
+      } else {
+        scanner.className='fp-scanner success';
+        icon.textContent='✅';
+        prog.textContent='All 3 scans captured!';
+        line.style.opacity='0';
+        setTimeout(()=>nextStep(3), 900);
+        buildReview();
+      }
+    } else {
+      scanner.className='fp-scanner error';
+      icon.textContent='❌';
+      prog.textContent='Poor quality — try again';
+      line.style.opacity='0';
+      setTimeout(()=>{ scanner.className='fp-scanner'; icon.textContent='🫰'; prog.textContent='Place finger again'; }, 1200);
+    }
+  }, 1800);
+}
+
+function resetFPScanner(){
+  document.getElementById('fp-scanner').className='fp-scanner';
+  document.getElementById('fp-icon').textContent='🫰';
+  document.getElementById('fp-scan-line').style.opacity='0';
+  document.getElementById('fp-progress').textContent='Waiting…';
+  ['1','2','3'].forEach(i=>document.getElementById('fpdot-'+i).style.background='var(--border)');
+}
+
+function buildReview(){
+  const fn = document.getElementById('e-fname').value;
+  const ln = document.getElementById('e-lname').value;
+  const id = document.getElementById('e-id').value;
+  const dp = document.getElementById('e-dept').value;
+  const rl = document.getElementById('e-role').value||'—';
+  document.getElementById('enroll-review').innerHTML=`
+    <div><b style="color:var(--text)">Name:</b> ${fn} ${ln}</div>
+    <div><b style="color:var(--text)">ID:</b> ${id}</div>
+    <div><b style="color:var(--text)">Department:</b> ${dp}</div>
+    <div><b style="color:var(--text)">Role:</b> ${rl}</div>
+    <div><b style="color:var(--text)">Fingerprint:</b> <span style="color:var(--accent)">✓ 3/3 samples captured</span></div>
+  `;
+}
+
+function confirmEnroll(){
+  const fn = document.getElementById('e-fname').value;
+  const ln = document.getElementById('e-lname').value;
+  const id = document.getElementById('e-id').value;
+  const dp = document.getElementById('e-dept').value;
+  const rl = document.getElementById('e-role').value;
+  const fpId = 'FP-'+String(users.length+1).padStart(3,'0');
+  users.push({id,fname:fn,lname:ln,dept:dp,role:rl,fpId});
+  showToast(`✓ ${fn} ${ln} enrolled successfully!`,'success');
+  // Reset form
+  ['e-fname','e-lname','e-id','e-role'].forEach(f=>document.getElementById(f).value='');
+  document.getElementById('e-dept').value='';
+  setTimeout(()=>{ nextStep(1); navigate('users'); },800);
+}
+
+// ── USERS ──
+function renderUsers(){
+  const tbody = document.getElementById('users-table-body');
+  if(users.length===0){ tbody.innerHTML='<tr><td colspan="6" style="color:var(--muted);text-align:center;padding:24px">No users enrolled yet</td></tr>'; return; }
+  tbody.innerHTML = users.map((u,i)=>`
+    <tr>
+      <td><span class="avatar">${u.fname[0]}${u.lname[0]}</span>${u.fname} ${u.lname}</td>
+      <td style="font-family:'Space Mono',monospace;font-size:12px;color:var(--muted)">${u.id}</td>
+      <td>${u.dept}</td>
+      <td style="color:var(--muted)">${u.role||'—'}</td>
+      <td><span style="font-family:'Space Mono',monospace;font-size:11px;color:var(--accent)">${u.fpId}</span></td>
+      <td><button class="btn btn-danger" style="font-size:11px;padding:4px 12px" onclick="deleteUser(${i})">Remove</button></td>
+    </tr>
+  `).join('');
+}
+function deleteUser(i){
+  const u = users[i];
+  users.splice(i,1);
+  renderUsers();
+  showToast(`${u.fname} ${u.lname} removed`,'error');
+}
+
+// ── REPORTS ──
+function renderReports(){
+  document.getElementById('rpt-week').textContent = attendanceLog.length;
+  document.getElementById('rpt-unique').textContent = new Set(attendanceLog.map(l=>l.userId)).size;
+  const late = attendanceLog.filter(l=>l.status==='Late').length;
+  document.getElementById('rpt-late-rate').textContent = attendanceLog.length ? Math.round(late/attendanceLog.length*100)+'%' : '0%';
+
+  if(attendanceLog.length){
+    const avg = attendanceLog.reduce((s,l)=>{ const d=new Date(l.time); return s+d.getHours()*60+d.getMinutes(); },0)/attendanceLog.length;
+    const h=Math.floor(avg/60), m=Math.round(avg%60);
+    document.getElementById('rpt-avg').textContent = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+  }
+
+  const tbody = document.getElementById('report-table-body');
+  if(attendanceLog.length===0){ tbody.innerHTML='<tr><td colspan="5" style="color:var(--muted);text-align:center;padding:24px">No records</td></tr>'; return; }
+  tbody.innerHTML = [...attendanceLog].reverse().map(l=>{
+    const u = users.find(u=>u.id===l.userId)||{fname:'?',lname:'',id:'?'};
+    const d = new Date(l.time);
+    const date = d.toLocaleDateString('en-MY');
+    const time = d.toLocaleTimeString('en-MY',{hour:'2-digit',minute:'2-digit'});
+    return `<tr>
+      <td><span class="avatar">${u.fname[0]}${u.lname?u.lname[0]:''}</span>${u.fname} ${u.lname||''}</td>
+      <td style="font-family:'Space Mono',monospace;font-size:12px;color:var(--muted)">${u.id}</td>
+      <td style="color:var(--muted)">${date}</td>
+      <td style="font-family:'Space Mono',monospace;font-size:12px">${time}</td>
+      <td><span class="badge badge-${l.status.toLowerCase()}">${l.status}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+function exportCSV(){
+  const rows = [['Name','ID','Date','Time','Status']];
+  attendanceLog.forEach(l=>{
+    const u = users.find(u=>u.id===l.userId)||{fname:'?',lname:'',id:'?'};
+    const d = new Date(l.time);
+    rows.push([`${u.fname} ${u.lname}`, u.id, d.toLocaleDateString(), d.toLocaleTimeString(), l.status]);
+  });
+  const csv = rows.map(r=>r.join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download='attendance_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+  showToast('CSV exported!','success');
+}
+
+// ── TOAST ──
+function showToast(msg, type='success'){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = `toast ${type} show`;
+  setTimeout(()=>t.classList.remove('show'), 3000);
+}
+
+// Init
+refreshDashboard();
+</script>
+</body>
+</html>
